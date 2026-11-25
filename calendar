@@ -35,7 +35,7 @@ sub draw_month {
         print +(($wday + $d) % 7 == 0) ? "\n" : " ";
     }
     print "\n" if ($wday + $days) % 7 != 0;
-    print "\n<- previous   next ->   t: today   d: day view   q: quit\n";
+    print "\n<- previous   next ->\nt: today   d: day view   q: quit\n";
 }
 
 sub draw_day {
@@ -44,7 +44,7 @@ sub draw_day {
 
     print "\e[H\e[2J";
     print "$text\n";
-    print "\n<- previous day   next day ->   t: today   m: month view   q: quit\n";
+    print "\n<- previous day   next day ->\nt: today   m: month view   q: quit\n";
 }
 
 sub redraw {
