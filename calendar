@@ -8,6 +8,9 @@ my ($today, $cur_mon, $cur_year) = (localtime)[3, 4, 5];
 $cur_year += 1900;
 my ($mon, $year) = ($cur_mon, $cur_year);
 
+my $view = 'month';                                  # 'month' or 'day'
+my $sel  = timegm(0, 0, 12, $today, $cur_mon, $cur_year);   # selected day (noon UTC)
+
 sub days_in_month {
     my ($m, $y) = @_;
     my @dim = (31,28,31,30,31,30,31,31,30,31,30,31);
@@ -32,7 +35,20 @@ sub draw_month {
         print +(($wday + $d) % 7 == 0) ? "\n" : " ";
     }
     print "\n" if ($wday + $days) % 7 != 0;
-    print "\n<- previous   next ->   q: quit\n";
+    print "\n<- previous   next ->   t: today   d: day view   q: quit\n";
+}
+
+sub draw_day {
+    my ($d, $m, $y) = (gmtime $sel)[3, 4, 5];
+    my $text = strftime("%A %d.%b.%Y", 0, 0, 12, $d, $m, $y);   # Wednesday 25.Nov.2026
+
+    print "\e[H\e[2J";
+    print "$text\n";
+    print "\n<- previous day   next day ->   t: today   m: month view   q: quit\n";
+}
+
+sub redraw {
+    if ($view eq 'day') { draw_day() } else { draw_month($mon, $year) }
 }
 
 # Put the terminal in raw-ish mode (no echo, no line buffering)
@@ -52,7 +68,7 @@ sub read_byte {
     return $n ? $c : undef;
 }
 
-draw_month($mon, $year);
+redraw();
 
 while (defined(my $key = read_byte())) {
     if ($key eq "\e") {
@@ -61,14 +77,34 @@ while (defined(my $key = read_byte())) {
         my $b2 = read_byte(0.05);
         next unless defined $b2 && $b1 eq '[';
 
-        if ($b2 eq 'C') {                 # right arrow: next month
-            if (++$mon > 11) { $mon = 0; $year++; }
-        } elsif ($b2 eq 'D') {            # left arrow: previous month
-            if (--$mon < 0) { $mon = 11; $year--; }
+        my $dir = $b2 eq 'C' ? 1 : $b2 eq 'D' ? -1 : 0;   # right = +1, left = -1
+        next unless $dir;
+
+        if ($view eq 'month') {
+            $mon += $dir;
+            if    ($mon > 11) { $mon = 0;  $year++; }
+            elsif ($mon < 0)  { $mon = 11; $year--; }
         } else {
-            next;
+            $sel += $dir * 86400;         # step one day (noon UTC avoids DST issues)
         }
-        draw_month($mon, $year);
+        redraw();
+    }
+    elsif ($key eq 't' || $key eq 'T') {
+        # Jump to the current date, staying in the current view
+        $sel = timegm(0, 0, 12, $today, $cur_mon, $cur_year);
+        ($mon, $year) = ($cur_mon, $cur_year);
+        redraw();
+    }
+    elsif ($key eq 'd' || $key eq 'D') {
+        $view = 'day';
+        $sel  = timegm(0, 0, 12, $today, $cur_mon, $cur_year);   # jump to today
+        redraw();
+    }
+    elsif ($key eq 'm' || $key eq 'M') {
+        $view = 'month';
+        ($mon, $year) = (gmtime $sel)[4, 5];     # show the month of the selected day
+        $year += 1900;
+        redraw();
     }
     elsif ($key eq 'q' || $key eq 'Q') {
         last;
